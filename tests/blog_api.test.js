@@ -4,8 +4,10 @@ const { describe } = require("yargs");
 const app = require("../app");
 const helper = require("./test_helper");
 const api = supertest(app);
-
+const bcrypt = require("bcryptjs");
 const Blog = require("../models/blog");
+const User = require("../models/user");
+const jwt = require("jsonwebtoken");
 
 test("blogs are returned as json", async () => {
   await api
@@ -41,6 +43,10 @@ test("can a new blog be added, async", async () => {
   const blogsInBase = await blogsInDb();
   await api
     .post("/api/blogs")
+    .set(
+      "Authorization",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3RtaWRkbGV3YXJlMjM0IiwiaWQiOiI2MmM4MTYyZWRkYmVkYTM1ZWZjMmE5ODIiLCJpYXQiOjE2NTcyODAxOTB9.mkBOyu92Opsjus5496GHXQRjZQU2dXdBG5gDwiOgDjc"
+    )
     .send(blogObj)
     .expect(201)
     .expect("Content-Type", /application\/json/);
@@ -94,6 +100,7 @@ test("does test return bad request?", async () => {
   try {
     await api
       .post("/api/blogs")
+
       .send(blogObj)
       .expect(201)
       .expect("Content-Type", /application\/json/);
@@ -132,6 +139,59 @@ test("editing blogs likecount", async () => {
   const blogsAfterDelete = await helper.blogsInDb();
   console.log(blogsAfterDelete, "uudet");
   expect(blogsAfterDelete[0].likes).toBe(newLikes);
+});
+
+test("creation succeeds with a fresh username", async () => {
+  const usersAtStart = await helper.usersInDb();
+
+  const newUser = {
+    username: "ssssfffff",
+    name: "jokunen",
+    password: "asdfg",
+  };
+
+  await api
+    .post("/api/users")
+    .send(newUser)
+    .expect(201)
+    .expect("Content-Type", /application\/json/);
+
+  const usersAtEnd = await helper.usersInDb();
+  expect(usersAtEnd).toHaveLength(usersAtStart.length + 1);
+
+  const usernames = usersAtEnd.map((u) => u.username);
+  expect(usernames).toContain(newUser.username);
+});
+
+test("creation fails with existing username or too short username", async () => {
+  const usersAtStart = await helper.usersInDb();
+
+  const newUser = {
+    username: "sss",
+    name: "jokunen",
+    password: "asdfg",
+  };
+
+  await api
+    .post("/api/users")
+    .send(newUser)
+    .expect(400)
+    .expect("Content-Type", /application\/json/);
+});
+
+test("login?", async () => {
+  const newUser = {
+    name: "jokunen",
+    password: "asdfg",
+  };
+
+  api.post("/api/login").send(newUser).expect(200).end(onResponse);
+
+  function onResponse(err, req, res) {
+    const authorization = res.get("authorization");
+    console.log(authorization, "TESTSTTSTSTT");
+    return;
+  }
 });
 
 afterAll(() => {
